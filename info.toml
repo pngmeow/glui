@@ -1,0 +1,7 @@
+# glui - ui for garry's mod.
+
+[script]
+name = "glui"
+version = "1.0.0"
+author = "pngmeow"
+dependencies = ["Eyoko1.ljeutil"]
