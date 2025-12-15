@@ -49,6 +49,86 @@ local function __isInRect(x, y, w, h, mx, my)
     and my <= y + h
 end
 
+-- word wrap text
+local function __wrapText(text, font, maxWidth)
+    if not text or text == "" then
+        return {}
+    end
+
+    text = tostring(text)
+    surface.SetFont(font)
+
+    local words = {}
+    for word in text:gmatch("%S+") do
+        table.insert(words, word)
+    end
+    local lines = {}
+    local currentLine = ""
+
+    for idx = 1, #words do
+        local word = words[idx]
+        if word ~= nil and word ~= "" then
+            surface.SetFont(font)
+            local wordWidth = surface.GetTextSize(word)
+
+            -- Inline word splitting for long words
+            if wordWidth > maxWidth then
+                local chunk = ""
+                for i = 1, #word do
+                    local testChunk = chunk .. word:sub(i,i)
+                    local chunkWidth = surface.GetTextSize(testChunk)
+
+                    if chunkWidth <= maxWidth then
+                        chunk = testChunk
+                    else
+                        if currentLine ~= "" then
+                            table.insert(lines, currentLine)
+                            currentLine = ""
+                        end
+                        if chunk ~= "" then
+                            table.insert(lines, chunk)
+                        end
+                        chunk = word:sub(i,i)
+                    end
+                end
+
+                if chunk ~= "" then
+                    if currentLine ~= "" then
+                        table.insert(lines, currentLine)
+                    end
+                    currentLine = chunk
+                end
+            else
+                local testLine = (currentLine == "") and word or (currentLine .. " " .. word)
+                local w = surface.GetTextSize(testLine)
+
+                if w <= maxWidth then
+                    currentLine = testLine
+                else
+                    if currentLine ~= "" then
+                        table.insert(lines, currentLine)
+                    end
+                    currentLine = word
+                end
+            end
+        end
+    end
+
+    if currentLine ~= "" then
+        table.insert(lines, currentLine)
+    end
+
+    local function trim(s)
+        return s:match("^%s*(.-)%s*$")
+    end
+
+    for i, line in ipairs(lines) do
+        lines[i] = trim(line)
+    end
+
+    return lines
+end
+
 __fonts = {}
 __fontData = {}
 // creates a font, returns the name. If it exists, it returns the cached name.
@@ -106,15 +186,18 @@ function glui.input.run()
     return {glui.input}
 end
 
+// This draws over the entire screen so its easier to design stuff
+// probably not that useful to anyone
 function glui.draw.viewport()
     __setDrawColor(glui.style.__viewport)
     surface.DrawRect(0, 0, ScrW(), ScrH())
 end
 
 // begin window
-function glui.draw.beginWindow(name, x, y, width, height, flagTable)
-    if glui.elements[name] == nil then
-        glui.elements[name] = {
+function glui.draw.beginWindow(_id, name, x, y, width, height, flagTable)
+    if glui.elements[_id] == nil then
+        glui.elements[_id] = {
+            _id = _id,
             name = name,
             x = x,
             y = y,
@@ -125,11 +208,14 @@ function glui.draw.beginWindow(name, x, y, width, height, flagTable)
             drag_x = 0,
             drag_y = 0,
 
-            flagTable = flagTable
+            flagTable = flagTable,
+            __internal = {
+                minimized = false
+            }
         }
     end
 
-    local window = glui.elements[name]
+    local window = glui.elements[_id]
     // fixed titlebar height, if flagTable.noTitleBar is set, it becomes 0!!!!
     local titleBarHeight = 24 
 
@@ -153,6 +239,11 @@ function glui.draw.beginWindow(name, x, y, width, height, flagTable)
     end
 
     __setDrawColor(glui.style.window.frame)
+    if (not window.__internal.minimized) then
+        window.height = height
+    else
+        window.height = titleBarHeight
+    end
     surface.DrawRect(window.x, window.y, window.width, window.height)
 
     // Should we draw the title bar?
@@ -170,6 +261,22 @@ function glui.draw.beginWindow(name, x, y, width, height, flagTable)
         __setTextDrawColor(glui.style.text.normal)
         surface.SetTextPos(window.x + 6, window.y + 6)
         surface.DrawText(name)
+
+        // Should we draw the minimize button?
+        if not flagTable.noMinimize then
+            surface.SetTextPos(window.x + window.width - 20 , window.y + 6)
+            surface.DrawText("_")
+            if __isInRect(
+                window.x + window.width - 20, 
+                window.y,  -- y position of button
+                titleBarHeight, 
+                titleBarHeight, 
+                glui.input.mx, 
+                glui.input.my
+            ) and glui.input.lmb then
+                window.__internal.minimized = not window.__internal.minimized
+            end
+        end
     else
         titleBarHeight = 0
     end
@@ -197,6 +304,8 @@ function glui.draw.beginWindow(name, x, y, width, height, flagTable)
         height = window.height, 
         titleBarHeight = titleBarHeight,
     })
+
+    return glui.elements[_id]
 end
 
 // end window 
@@ -209,6 +318,8 @@ end
 
 // Draws a label at X, Y relative to the current window
 function glui.draw.label(text, x, y)
+    if text == nil then return end
+
     local parent = __currentWindow()
 
     if parent then
@@ -222,6 +333,38 @@ function glui.draw.label(text, x, y)
     surface.DrawText(text)
 end
 
+function glui.draw.labelWrapped(text, x, y, maxWidth, lineSpacing)
+    local parent = __currentWindow()
+    local font = glui.style.other.fonts.default
+    lineSpacing = lineSpacing or 2
+
+    if not maxWidth then
+        if parent then
+            maxWidth = parent.width - x
+        else
+            maxWidth = ScrW() - x
+        end
+    end
+
+    if parent then
+        x = parent.x + x
+        y = parent.y + y + parent.titleBarHeight
+    end
+
+    surface.SetFont(font)
+    __setTextDrawColor(glui.style.text.normal)
+
+    local lines = __wrapText(text, font, maxWidth)
+    local _, lineHeight = surface.GetTextSize("Ay")
+
+    for i = 1, #lines do
+        surface.SetTextPos(x, y + (i - 1) * (lineHeight + lineSpacing))
+        surface.DrawText(lines[i])
+    end
+
+    -- return the total height for layout purposes
+    return #lines * (lineHeight + lineSpacing)
+end
 
 
 return glui
