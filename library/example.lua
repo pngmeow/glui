@@ -6,7 +6,7 @@ local flags = lje.include("library/flags.lua")
 // >> Make sure to use glui.style(style) in your rendering code, or the style wont take effect, and glui will use the default style.
 
 -- >> eyoko1 theme (imgui)
-
+--[[
 local style = {
     other = {
         titleHeight = 20,
@@ -38,7 +38,7 @@ local style = {
         frame = col(38, 38, 38, 240)
     }
 }
-
+]]
 
 
 -- >> aimware theme
@@ -86,26 +86,16 @@ local style = {
 hook.pre("ljeutil/render", "example", function()
     local mx, my = glui.beginInput()
 
-
-    local i = 0
-
-
-    cam.Start2D()
-    
     render.PushRenderTarget(lje.util.rendertarget)
-
     glui.style(style)
     glui.draw.beginWindow("overlayWindow", "overlay window test!", 10, 10, 200, 30, flags.compile(flags.window.noTitleBar, flags.window.noMove))
         glui.draw.label("5cent utility mod", 10, 8)
     glui.draw.endWindow()
 
-    
     glui.draw.beginWindow("utilityListWindow", "util list", 10, 50, 200, 360, flags.compile(flags.window.noMinimize))
 
     glui.draw.endWindow()
 
-
-    
     glui.draw.beginWindow("mainWindow","main ", 215, 10, 400, 400)
         glui.draw.label("Example label", 10, 10)
         glui.draw.checkbox("exampleCheckbox2", "Checkbox", 10, 30)
@@ -117,12 +107,8 @@ hook.pre("ljeutil/render", "example", function()
 
     glui.draw.endWindow()
 
-   
-
     surface.SetDrawColor(80, 80, 255, 255)
     surface.DrawRect(mx, my, 5, 5)
     render.PopRenderTarget()
-    cam.End2D()
-
 end)
 
