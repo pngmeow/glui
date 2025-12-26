@@ -87,7 +87,7 @@ hook.pre("ljeutil/render", "example", function()
     local mx, my = glui.beginInput()
 
     render.PushRenderTarget(lje.util.rendertarget)
-    glui.style(style)
+    --glui.style(style)
     glui.draw.beginWindow("overlayWindow", "overlay window test!", 10, 10, 200, 30, flags.compile(flags.window.noTitleBar, flags.window.noMove))
         glui.draw.label("5cent utility mod", 10, 8)
     glui.draw.endWindow()
